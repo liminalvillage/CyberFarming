@@ -12,6 +12,8 @@ from scipy.ndimage import convolve1d
 from scipy.misc import imread
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from os.path import isfile, join
+from os import listdir
 
 
 
@@ -60,16 +62,47 @@ def gD(F, s, iorder, jorder):
     return convolved
 
 def findTrackingPoints(img,maxCorners, quality, dist):
-    gray = cv2.cvColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     corners = cv2.goodFeaturesToTrack(gray, maxCorners, quality, dist)
     corners = np.int0(corners)
     return corners
 
 if __name__=="__main__":
+    mypath = '../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_rgb_img'
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath,f))]
+    images = np.empty(len(onlyfiles), dtype=object)
+    for n in range(0, len(onlyfiles)):
+        images[n]= cv2.imread(join(mypath, onlyfiles[n]))
+
+    for i in range(0, len(images)):
+        num = i
+        img = images[i]
+
+        corners = findTrackingPoints(img, 25, 0.01, 10)
+        for i in corners:
+            x,y = i.ravel()
+            cv2.circle(img, (x,y), 3, 255, -1)
+        plt.imshow(img)
+        plt.imsave('./output/ara2013gftt_plant%d.png' % num, img)
+
+
+
+    """
     for i in range(1,166):
         if i in range(1,10):
-            img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant00%_rgb.png')
-    fig = plt.figure()
+            num = i
+            img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant00%d_rgb.png' % i)
+        if i in range(10,100):
+            num = i
+            img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant0%d_rgb.png' % i)
+        if i in range(100,166):
+            num = i
+            img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant00%d_rgb.png' % i)
+    print img.format
+    plt.imshow(img), plt.show()
+    """
+
+    """
     #import images 1-5
     img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant001_rgb.png')
     img2 = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_plant002_rgb.png')
@@ -140,5 +173,5 @@ if __name__=="__main__":
     fig.add_subplot(1,5,5).imshow(img5)
 
     plt.show(fig)
-
+    """
     #cv2.goodFeaturesToTrack(img, maxCorners, qualityLevel, minDistance[, corners[, mask[, blockSize[, useHarrisDetector[, k]]]]])
