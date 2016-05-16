@@ -16,6 +16,7 @@ import matplotlib.cm as cm
 from os.path import isfile, join
 from os import listdir
 from skimage import io, color
+import numpy.ma as ma
 
 
 
@@ -63,11 +64,6 @@ def gD(F, s, iorder, jorder):
                            mode='nearest')
     return convolved
 
-def findTrackingPoints(img,maxCorners, quality, dist):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    corners = cv2.goodFeaturesToTrack(gray, maxCorners, quality, dist)
-    corners = np.int0(corners)
-    return corners
 
 def gauss(s):
     """
@@ -106,6 +102,8 @@ def Dij(gray, kernel):
     Lyy = gD(gray, kernel, 0, 2)
     Lxy = gD(gray, kernel, 1, 1)
     D = -(((Lx*Lx)+(Ly*Ly))/(((Ly*Ly)*Lxx)-(2*(Lx*Lxy*Ly))+((Lx*Lx)*Lyy)))
+    Dm = D < 0
+    D[Dm] = 0
     Dx = np.array((D * Lx)).astype('int')
     Dy = np.array((D * Ly)).astype('int')
     return Dx, Dy
@@ -136,23 +134,47 @@ def estimateCenter(Dx, Dy, kernel):
             x = rowX[i]
             y = rowY[i]
             # discard the values that exceed the size of the image
-            if (x+i) < width and (x+i) > 0:
-                if (y+s) < hight and (y+s)>0:
-                    saliency[(y+s)][(x+i)] = saliency[(y+s)][(x+i)] + 1
+            # threshold based on the norm of the vector
+            lengte = np.linalg.norm(np.array([y,x]))
+            if lengte > 5:
+                if (x+i) < width and (x+i) > 0:
+                    if (y+s) < hight and (y+s)>0:
+                        saliency[(y+s)][(x+i)] = saliency[(y+s)][(x+i)] + 1
     # Gaussian blurr
     blurredSaliency = convolve(saliency, gauss(kernel), mode='nearest')
     return saliency, blurredSaliency
 
 
 
-if __name__=="__main__":
 
-    img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_rgb_img/ara2013_plant001_rgb.png')
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    kernel = 3
-    Dx,Dy = Dij(gray, kernel)
-    kernel = 7
-    saliency, blurredSaliency = estimateCenter(Dx,Dy, kernel)
+if __name__=="__main__":
+    mypath = '../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_rgb_img'
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath,f))]
+    images = np.empty(len(onlyfiles), dtype=object)
+    for n in range(0, len(onlyfiles)):
+        images[n]= cv2.imread(join(mypath, onlyfiles[n]))
+
+    for i in range(0, len(images)):
+        img = images[i]
+        #img = cv2.imread('../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_rgb_img/ara2013_plant001_rgb.png')
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        kernel = 3
+        Dx,Dy = Dij(gray, kernel)
+        kernel = 7
+        saliency, blurredSaliency = estimateCenter(Dx,Dy, kernel)
+        # save images
+        fig, (ax2, ax3) = plt.subplots(1, 2, figsize=(8,4) , sharex=True, sharey=True)
+        ax2.axis('off')
+        ax2.imshow(saliency, cmap=cm.gray)
+        ax2.set_title('Saliency before Blurr')
+        ax2.set_adjustable('box-forced')
+        ax3.axis('off')
+        ax3.imshow(blurredSaliency, cmap=cm.gray)
+        ax3.set_title('Blurred Saliency')
+        ax3.set_adjustable('box-forced')
+        plt.show()
+        #plt.imsave('./output/saliency/ara2013bs_plant%d.png' %i, blurredSaliency, cmap=cm.Greys)
+
 
     # print the images
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(8, 4), sharex=True, sharey=True)

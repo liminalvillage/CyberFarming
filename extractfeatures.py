@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from os.path import isfile, join
 from os import listdir
+from skimage.feature import hog
+from skimage import data,color,exposure
 
 
 
@@ -67,6 +69,45 @@ def findTrackingPoints(img,maxCorners, quality, dist):
     corners = np.int0(corners)
     return corners
 
+def affineTransform(image, x1, y1, x2, y2, x3, y3, M, N):
+    """
+    affineTransform
+    image(ndarray)  : original image from which an area is used
+    x1-3(float)     : x coordinates of 3 corners of the image
+    y1-3(float)     : y "
+    M(int)          : width of new image
+    N(int)          : length of new image
+
+    returns ndarray with shape M, N
+
+    Transforms the area given by the coordinates to the image using affine
+    transformation
+    """
+    b = np.array([0, 0, M, 0, 0, N]).reshape(6, 1)
+    A = np.array([[x1, y1, 1, 0, 0, 0], [0, 0, 0, x1, y1, 1],
+                  [x2, y2, 1, 0, 0, 0], [0, 0, 0, x2, y2, 1],
+                  [x3, y3, 1, 0, 0, 0], [0, 0, 0, x3, y3, 1]])
+    v = np.linalg.lstsq(A, b)[0]
+    v = v.reshape(2, 3)
+    output = cv2.warpAffine(image, v, (M, N))
+    return output
+
+def getCoord(firstPoint, secondPoint):
+    [fpoint] = firstPoint
+    x1,y1 = fpoint
+    ny1 = y1 + 3
+    ny2 = y1 + 3
+    nx1 = x1 + 6
+    nx2 = x1 - 6
+    [spoint] = secondPoint
+    x2, y2 = spoint
+    ny3 = y2 - 3
+    nx3 = x2 + 6
+    return nx1,ny1,nx2, ny2,nx3, ny3
+
+
+
+
 if __name__=="__main__":
     mypath = '../Plant_Phenotyping_Datasets/Plant_Phenotyping_Datasets/Plant/Ara2013-Canon/ara2013_rgb_img'
     onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath,f))]
@@ -74,16 +115,56 @@ if __name__=="__main__":
     for n in range(0, len(onlyfiles)):
         images[n]= cv2.imread(join(mypath, onlyfiles[n]))
 
-    for i in range(0, len(images)):
+
+    imgcorners = []
+    #for i in range(0, len(images)):
+    for i in range(0, 10):
         num = i
         img = images[i]
-
+        #img = gD(img, 3, 1,1)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         corners = findTrackingPoints(img, 25, 0.01, 10)
+        cor = []
         for i in corners:
             x,y = i.ravel()
             cv2.circle(img, (x,y), 3, 255, -1)
-        plt.imshow(img)
-        plt.imsave('./output/ara2013gftt_plant%d.png' % num, img)
+            cor.append(i.tolist())
+        point1 = cor[0]
+        point2 = cor[1]
+        point1 = np.asarray(point1)
+        point2 = np.asarray(point2)
+        print point1
+        x,y = point1[0].ravel()
+        cv2.circle(img, (x,y), 3, 100, -1)
+        x,y = point2[0].ravel()
+        cv2.circle(img, (x,y), 3, 100, -1)
+        print "Image"
+        print num
+        print cor
+        print " "
+        #plt.imshow(img)
+        #plt.imsave('./output/ara2013gftt_plant%d.png' % num, img)
+        x1,y1,x2,y2,x3,y3 = getCoord(cor[0],cor[1])
+        trans = affineTransform(gray, x1, y1, x2, y2, x3, y3, 50, 100)
+
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(8, 4), sharex=True, sharey=True)
+        ax1.axis('off')
+        ax1.imshow(trans, cmap=cm.Greys)
+        ax1.set_title('Input img')
+        ax1.set_adjustable('box-forced')
+
+        fd, hog_img = hog(trans, orientations=8, pixels_per_cell=(16, 16),cells_per_block=(1, 1), visualise=True)
+        hog_image_rescaled = exposure.rescale_intensity(hog_img, in_range=(0, 0.02))
+        ax2.axis('off')
+        ax2.imshow(hog_image_rescaled, cmap=cm.Greys)
+        ax2.set_title('HOG img')
+        ax2.set_adjustable('box-forced')
+
+        ax3.axis('off')
+        ax3.imshow(img)
+        ax3.set_title('Original, with points')
+        ax3.set_adjustable('box-forced')
+        plt.show()
 
 
 
